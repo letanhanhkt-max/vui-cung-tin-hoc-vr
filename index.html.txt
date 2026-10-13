@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Mô Phỏng VR: Quy Trình Bật Tắt Máy Tính An Toàn</title>
+  <!-- Nạp thư viện A-Frame chính thức qua CDN chuẩn W3C/WebXR -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+  <script>
+    // Logic điều khiển hệ thống sư phạm tương tác
+    AFRAME.registerComponent('simulation-logic', {
+      init: function () {
+        this.caseOn = false;
+        this.monitorOn = false;
+        this.safeShutdownState = false;
+
+        this.caseBtn = document.querySelector('#case-btn');
+        this.caseLed = document.querySelector('#case-led');
+        this.monitorBtn = document.querySelector('#monitor-btn');
+        this.monitorScreen = document.querySelector('#monitor-screen');
+        this.osShutdownBtn = document.querySelector('#os-shutdown');
+        this.boardText = document.querySelector('#board-text');
+
+        this.sndClick = document.querySelector('#snd-click');
+        this.sndFan = document.querySelector('#snd-fan');
+
+        // Bấm nút nguồn Case
+        this.caseBtn.addEventListener('click', () => {
+          this.sndClick.components.sound.playSound();
+
+          if (!this.caseOn) {
+            // Bật Case
+            this.caseOn = true;
+            this.caseLed.setAttribute('material', 'color', '#00FF00'); // Đèn xanh
+            this.sndFan.components.sound.playSound();
+            this.updateScreen();
+            this.boardText.setAttribute('text', 'value', 'Thùng máy (Case) đã bật! Hãy bật nút nguồn Màn hình.');
+          } else {
+            // Bấm tắt Case đột ngột khi chưa tắt phần mềm
+            if (!this.safeShutdownState) {
+              this.boardText.setAttribute('text', {
+                value: 'CẢNH BÁO: Tắt nguồn đột ngột dễ hỏng dữ liệu và thiết bị! Hãy tắt từ màn hình trước.',
+                color: '#FF1744'
+              });
+            } else {
+              this.caseOn = false;
+              this.caseLed.setAttribute('material', 'color', '#263238');
+              this.sndFan.components.sound.stopSound();
+              this.updateScreen();
+              this.boardText.setAttribute('text', {
+                value: 'Quy trình hoàn tất! Em đã tắt máy tính rất an toàn.',
+                color: '#00E676'
+              });
+            }
+          }
+        });
+
+        // Bấm nút nguồn Màn hình
+        this.monitorBtn.addEventListener('click', () => {
+          this.sndClick.components.sound.playSound();
+          this.monitorOn = !this.monitorOn;
+          this.updateScreen();
+        });
+
+        // Thao tác Shut Down chuẩn trên màn hình Desktop ảo
+        this.osShutdownBtn.addEventListener('click', () => {
+          this.safeShutdownState = true;
+          this.osShutdownBtn.setAttribute('visible', 'false');
+          this.boardText.setAttribute('text', {
+            value: 'Hệ điều hành đang lưu dữ liệu và tắt...\nBây giờ em có thể bấm nút tắt màn hình!',
+            color: '#FFD54F'
+          });
+
+          setTimeout(() => {
+            this.caseOn = false;
+            this.caseLed.setAttribute('material', 'color', '#263238');
+            this.sndFan.components.sound.stopSound();
+            this.updateScreen();
+          }, 2500);
+        });
+      },
+
+      updateScreen: function () {
+        if (this.caseOn && this.monitorOn) {
+          this.monitorScreen.setAttribute('material', 'color', '#0288D1');
+          this.osShutdownBtn.setAttribute('visible', 'true');
+        } else if (!this.caseOn && this.monitorOn) {
+          this.monitorScreen.setAttribute('material', 'color', '#37474F'); // Màn hình sáng mờ không tín hiệu
+          this.osShutdownBtn.setAttribute('visible', 'false');
+        } else {
+          this.monitorScreen.setAttribute('material', 'color', '#000000'); // Tắt tối đen
+          this.osShutdownBtn.setAttribute('visible', 'false');
+        }
+      }
+    });
+  </script>
+</head>
+
+<body>
+  <!-- Khung cảnh 3D/VR hỗ trợ điều khiển chuột và điểm nhìn kính VR -->
+  <a-scene cursor="rayOrigin: mouse" simulation-logic background="color: #ECEFF1">
+    
+    <a-assets>
+      <audio id="click-audio" src="https://actions.google.com/sounds/v1/switches/switch_toggle.ogg" preload="auto"></audio>
+      <audio id="fan-audio" src="https://actions.google.com/sounds/v1/household/electric_fan_loop.ogg" preload="auto"></audio>
+    </a-assets>
+
+    <a-entity id="snd-click" sound="src: #click-audio"></a-entity>
+    <a-entity id="snd-fan" sound="src: #fan-audio; loop: true"></a-entity>
+
+    <!-- Camera và Con trỏ nhìn (Reticle) -->
+    <a-entity position="0 1.25 0">
+      <a-camera look-controls wasd-controls>
+        <a-cursor color="#FF9800" fuse="true" fuse-timeout="1200" raycaster="objects: .clickable"></a-cursor>
+      </a-camera>
+    </a-entity>
+
+    <!-- Ánh sáng -->
+    <a-entity light="type: ambient; color: #FFFFFF; intensity: 0.8"></a-entity>
+    <a-entity light="type: directional; position: 1 3 2; intensity: 0.5"></a-entity>
+
+    <!-- Bảng chỉ dẫn sư phạm -->
+    <a-plane position="0 2.2 -1.6" width="2.4" height="0.6" color="#263238">
+      <a-entity id="board-text" position="0 0 0.05"
+        text="value: BAI HOC: QUY TRINH BAT TAT MAY TINH\nBuoc 1: Nhin vao nut nguon mau do tren Thung may (Case) va bam chuot.; align: center; color: #FFF; width: 2.2; wrapCount: 45">
+      </a-entity>
+    </a-plane>
+
+    <!-- Bàn vi tính -->
+    <a-box position="0 0.7 -1.6" width="1.8" height="0.05" depth="0.9" color="#8D6E63"></a-box>
+    <a-cylinder position="-0.8 0.35 -1.3" radius="0.03" height="0.7" color="#5D4037"></a-cylinder>
+    <a-cylinder position="0.8 0.35 -1.3" radius="0.03" height="0.7" color="#5D4037"></a-cylinder>
+
+    <!-- Thùng máy (Case) & Nút nguồn -->
+    <a-box position="-0.5 1.05 -1.5" width="0.22" height="0.48" depth="0.45" color="#37474F">
+      <a-cylinder id="case-btn" class="clickable" position="0 0.15 0.23" rotation="90 0 0" radius="0.025" height="0.02" color="#E53935"></a-cylinder>
+      <a-sphere id="case-led" position="0 0.08 0.23" radius="0.008" color="#263238"></a-sphere>
+    </a-box>
+
+    <!-- Màn hình máy tính & Nút nguồn màn hình -->
+    <a-box position="0.1 1.08 -1.5" width="0.75" height="0.48" depth="0.04" color="#212121">
+      <a-plane id="monitor-screen" position="0 0 0.025" width="0.7" height="0.43" color="#000000">
+        <!-- Nút ảo Tắt máy trên màn hình Desktop -->
+        <a-box id="os-shutdown" class="clickable" position="-0.25 -0.16 0.02" width="0.14" height="0.045" depth="0.01" color="#C62828" visible="false">
+          <a-entity text="value: SHUT DOWN; align: center; width: 1.1; color: #FFF" position="0 0 0.01"></a-entity>
+        </a-box>
+      </a-plane>
+      <a-sphere id="monitor-btn" class="clickable" position="0.32 -0.22 0.025" radius="0.015" color="#546E7A"></a-sphere>
+    </a-box>
+    <a-cylinder position="0.1 0.77 -1.5" radius="0.025" height="0.1" color="#424242"></a-cylinder>
+    <a-box position="0.1 0.73 -1.5" width="0.25" height="0.02" depth="0.2" color="#303030"></a-box>
+
+    <!-- Bàn phím và Chuột -->
+    <a-box position="0.1 0.74 -1.3" width="0.45" height="0.015" depth="0.15" color="#424242"></a-box>
+    <a-box position="0.45 0.74 -1.3" width="0.08" height="0.02" depth="0.12" color="#212121"></a-box>
+
+  </a-scene>
+</body>
+</html>
